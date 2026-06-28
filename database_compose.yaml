@@ -10,9 +10,16 @@ services:
     image: postgres:18.4-alpine3.22
   redis:
     container_name: auth-redis
-    environment:
-      - REDIS_ARGS=--requirepass password --appendonly yes
     image: redis:8.8.0
     ports:
       - 8051:6379
-    command: redis server --port 6379
+    command:
+      [
+        "redis-server",
+        "--port",
+        "6379",
+        "--requirepass",
+        "password",
+        "--appendonly",
+        "yes",
+      ]
