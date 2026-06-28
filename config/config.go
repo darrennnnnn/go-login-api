@@ -13,7 +13,7 @@ type Config struct {
 }
 
 type JWTConfig struct {
-	Secret string
+	Secret []byte
 }
 
 type ServerConfig struct{
@@ -33,7 +33,7 @@ func Load() *Config {
 
 	return &Config{
 		JWT: JWTConfig{
-			Secret: getenv("JWT_SECRET"),
+			Secret: []byte(getenv("JWT_SECRET")),
 		},
 		Server: ServerConfig{
 			ServerPort: getenv("SERVER_PORT"),

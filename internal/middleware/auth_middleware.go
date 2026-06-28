@@ -1,17 +1,15 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("change-me")
-
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(jwtSecret []byte) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		auth := ctx.GetHeader("Authorization")
 		if auth == "" {
@@ -32,23 +30,25 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+
 			return jwtSecret, nil
 		})
+		
 		if err != nil || !token.Valid {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
-		if ok {
-			ctx.Set("claims", claims)
-			if exp, ok := claims["exp"].(float64); ok {
-				if int64(exp) < time.Now().Unix() {
-					ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
-					return
-				}
-			}
+		if !ok {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			return
 		}
+
+		ctx.Set("claims", claims)
 
 		ctx.Next()
 	}

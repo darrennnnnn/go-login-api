@@ -2,12 +2,14 @@ package user
 
 import (
 	"errors"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/darrennnnnn/go-login-api/config"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -23,23 +25,30 @@ func NewService(repo *Repository, cfg *config.Config) *Service {
 }
 
 func (s *Service) Login(requestBody LoginRequest) (string, error) {
-	user, err := s.repo.GetUser(requestBody.Username)
+	// normalize email
+	email := strings.ToLower(strings.TrimSpace(requestBody.Email))
 
+	user, err := s.repo.GetUserByEmail(email)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("User not found")
+		}
 		return "", err
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(requestBody.Password))
-	if err != nil {
+	if user == nil {
+		return "", errors.New("User not found")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(requestBody.Password)); err != nil {
 		return "", errors.New("Unauthorized")
 	}
 
-	idInt, _ := strconv.Atoi(user.Id)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":       idInt,
-		"username": user.UserName,
-		"name":     user.Name,
-		"exp":      time.Now().Add(1 * time.Hour).Unix(),
+		"id":       user.Id,
+		"username": user.Username,
+		"email":    user.Email,
+		"exp":      time.Now().Add(30 * time.Minute).Unix(),
 	})
 
 	accessToken, err := token.SignedString(s.cfg.JWT.Secret)
@@ -50,4 +59,78 @@ func (s *Service) Login(requestBody LoginRequest) (string, error) {
 
 	return accessToken, nil
 
+}
+
+func (s *Service) CreateUser(requestBody CreateUserRequest) (*User, error) {
+	// normalize input
+	email := strings.ToLower(strings.TrimSpace(requestBody.Email))
+	username := strings.TrimSpace(requestBody.Username)
+
+	// check for existing email
+	if existing, err := s.repo.GetUserByEmail(email); err == nil && existing != nil {
+		return nil, errors.New("Email already in use")
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	// check for existing username
+	if existing, err := s.repo.GetUserByUsername(username); err == nil && existing != nil {
+		return nil, errors.New("Username already in use")
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(requestBody.Password), 10)
+	if err != nil {
+		return nil, err
+	}
+
+	user := User{
+		Id:       uuid.NewString(),
+		Username: username,
+		Email:    email,
+		Password: string(hashedPassword),
+	}
+
+	result, err := s.repo.CreateUser(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *Service) DeleteUser(id string) error {
+	rowsAffected, err := s.repo.DeleteUser(id)
+
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("User not found")
+	}
+
+	return err
+}
+
+func (s *Service) GetUsers() ([]User, error) {
+	users, err := s.repo.GetUsers()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (s *Service) GetUserByID(id string) (*User, error) {
+	user, err := s.repo.GetUserByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("User not found")
+		}
+		return nil, err
+	}
+	return user, nil
 }
