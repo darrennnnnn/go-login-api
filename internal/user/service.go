@@ -44,11 +44,27 @@ func (s *Service) Login(requestBody LoginRequest) (string, error) {
 		return "", errors.New("Unauthorized")
 	}
 
+	expirationDate := time.Now().Add(30 * time.Minute)
+	accessTokenID := uuid.NewString()
+
+	accessTokenVar := &AccessToken{
+		ID: accessTokenID,
+		UserID: user.Id,
+		Revoked: false,
+		ExpiresAt: expirationDate,
+	}
+
+	err = s.repo.CreateAccessToken(accessTokenVar)
+
+	if err != nil {
+		return "", err
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":       user.Id,
+		"id":       accessTokenID,
 		"username": user.Username,
 		"email":    user.Email,
-		"exp":      time.Now().Add(30 * time.Minute).Unix(),
+		"exp":      expirationDate.Unix(),
 	})
 
 	accessToken, err := token.SignedString(s.cfg.JWT.Secret)
@@ -133,4 +149,29 @@ func (s *Service) GetUserByID(id string) (*User, error) {
 		return nil, err
 	}
 	return user, nil
+}
+
+func (s *Service) ValidateAccessToken(tokenID string) error {
+	accessToken, err := s.repo.GetAccessTokenByID(tokenID)
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("Token not found, please try to login again")
+		}
+		return err
+	}
+
+	if accessToken.Revoked {
+		return errors.New("Token is revoked")
+	}
+
+	if accessToken.ExpiresAt.Before(time.Now()) {
+		return errors.New("Token is expired")
+	}
+
+	return nil
+}
+
+func (s *Service) Logout(tokenID string) error {
+	return s.repo.RevokeAccessToken(tokenID)
 }

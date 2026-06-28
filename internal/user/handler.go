@@ -11,14 +11,14 @@ import (
 )
 
 type Handler struct {
-	service *Service
-	config *config.Config
+	Service *Service
+	Config *config.Config
 }
 
 func NewHandler(service *Service, config *config.Config) *Handler {
 	return &Handler{
-		service: service,
-		config: config,
+		Service: service,
+		Config: config,
 	}
 }
 
@@ -33,7 +33,7 @@ func (h *Handler) CreateUser(ctx *gin.Context) {
 		return
 	}
 
-	user, err := h.service.CreateUser(req)
+	user, err := h.Service.CreateUser(req)
 
 	if err != nil {
 		switch err.Error() {
@@ -63,7 +63,7 @@ func (h *Handler) DeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteUser(id); err != nil {
+	if err := h.Service.DeleteUser(id); err != nil {
 		if err.Error() == "User not found" {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
@@ -78,7 +78,7 @@ func (h *Handler) DeleteUser(ctx *gin.Context) {
 }
 
 func (h *Handler) GetUsers(ctx *gin.Context) {
-	users, err := h.service.GetUsers()
+	users, err := h.Service.GetUsers()
 
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -99,7 +99,7 @@ func (h *Handler) GetUserByID(ctx *gin.Context) {
 		return
 	}
 
-	user, err := h.service.GetUserByID(id)
+	user, err := h.Service.GetUserByID(id)
 
 	if err != nil {
 		if err.Error() == "User not found" {
@@ -127,7 +127,7 @@ func (h *Handler) Login(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, err := h.service.Login(req)
+	accessToken, err := h.Service.Login(req)
 
 	if err != nil {
 		switch err.Error() {
@@ -145,6 +145,43 @@ func (h *Handler) Login(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusAccepted, gin.H{
 		"access_token": accessToken,
+	})
+}
+
+func (h *Handler) Logout(ctx *gin.Context) {
+	claimsAny, ok := ctx.Get("claims")
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Unauthorized",
+		})
+		return
+	}
+
+	claims, ok := claimsAny.(jwt.MapClaims)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Unauthorized",
+		})
+		return
+	}
+
+	tokenID, ok := claims["id"].(string)
+	if !ok || tokenID == "" {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Unauthorized",
+		})
+		return
+	}
+
+	if err := h.Service.Logout(tokenID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "Logged out successfully",
 	})
 }
 

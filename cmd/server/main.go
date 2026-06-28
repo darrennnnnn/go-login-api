@@ -15,7 +15,7 @@ func main() {
 	cfg := config.Load()
 
 	db := database.Connect()
-	db.AutoMigrate(&user.User{})
+	db.AutoMigrate(&user.User{}, &user.AccessToken{})
 
 	validation.Init()
 

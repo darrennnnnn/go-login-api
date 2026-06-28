@@ -11,9 +11,10 @@ func Register(r *gin.Engine, handler *user.Handler, jwtSecret []byte) {
 	r.POST("/api/auth/register", handler.CreateUser)
 
 	protected := r.Group("/api")
-	protected.Use(middlewares.AuthMiddleware(jwtSecret))
+	protected.Use(middlewares.AuthMiddleware(jwtSecret, handler.Service))
 	{
 		protected.GET("/auth/me", handler.Me)
+		protected.GET("/auth/logout", handler.Logout)
 		protected.GET("/user", handler.GetUsers)
 		protected.GET("/user/:id", handler.GetUserByID)
 		protected.DELETE("/user/:id", handler.DeleteUser)

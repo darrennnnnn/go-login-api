@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/darrennnnnn/go-login-api/internal/user"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthMiddleware(jwtSecret []byte) gin.HandlerFunc {
+func AuthMiddleware(jwtSecret []byte, tokenService *user.Service) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		auth := ctx.GetHeader("Authorization")
 		if auth == "" {
@@ -48,7 +49,24 @@ func AuthMiddleware(jwtSecret []byte) gin.HandlerFunc {
 			return
 		}
 
+		tokenID, ok := claims["id"].(string)
+		if !ok {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token ID"})
+			return
+		}
+
+		if err := tokenService.ValidateAccessToken(tokenID); err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
 		ctx.Set("claims", claims)
+		fmt.Print(claims)
+		fmt.Printf("dakwdlkwaldklad\n")
+		fmt.Printf("dakwdlkwaldklad\n")
+		fmt.Printf("dakwdlkwaldklad\n")
+		fmt.Printf("dakwdlkwaldklad\n")
+		fmt.Printf("dakwdlkwaldklad\n")
 
 		ctx.Next()
 	}
