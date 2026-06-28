@@ -65,24 +65,3 @@ func (r *Repository) DeleteUser(id string) (int, error) {
 	}
 	return int(res.RowsAffected), nil
 }
-
-func (r *Repository) CreateAccessToken(accessToken *AccessToken) error {
-	err := r.db.Create(accessToken).Error
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *Repository) GetAccessTokenByID(tokenID string) (*AccessToken, error) {
-	accessToken := &AccessToken{}
-	err := r.db.Where("id = ?", tokenID).First(accessToken).Error
-	if err != nil {
-		return nil, err
-	}
-	return accessToken, nil
-}
-
-func (r *Repository) RevokeAccessToken(tokenID string) error {
-	return r.db.Model(&AccessToken{}).Where("id = ?", tokenID).Update("revoked", true).Error
-}

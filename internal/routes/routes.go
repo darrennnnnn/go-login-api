@@ -1,22 +1,23 @@
 package routes
 
 import (
+	"github.com/darrennnnnn/go-login-api/internal/auth"
 	middlewares "github.com/darrennnnnn/go-login-api/internal/middleware"
 	"github.com/darrennnnnn/go-login-api/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
-func Register(r *gin.Engine, handler *user.Handler, jwtSecret []byte) {
-	r.POST("/api/auth/login", handler.Login)
-	r.POST("/api/auth/register", handler.CreateUser)
+func Register(r *gin.Engine, userHandler *user.Handler, authHandler *auth.Handler, jwtSecret []byte) {
+	r.POST("/api/auth/login", authHandler.Login)
+	r.POST("/api/auth/register", authHandler.Register)
 
 	protected := r.Group("/api")
-	protected.Use(middlewares.AuthMiddleware(jwtSecret, handler.Service))
+	protected.Use(middlewares.AuthMiddleware(jwtSecret, authHandler.Service))
 	{
-		protected.GET("/auth/me", handler.Me)
-		protected.GET("/auth/logout", handler.Logout)
-		protected.GET("/user", handler.GetUsers)
-		protected.GET("/user/:id", handler.GetUserByID)
-		protected.DELETE("/user/:id", handler.DeleteUser)
+		protected.GET("/auth/me", authHandler.Me)
+		protected.GET("/auth/logout", authHandler.Logout)
+		protected.GET("/user", userHandler.GetUsers)
+		protected.GET("/user/:id", userHandler.GetUserByID)
+		protected.DELETE("/user/:id", userHandler.DeleteUser)
 	}
 }
