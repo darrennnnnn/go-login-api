@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/darrennnnnn/go-login-api/internal/user"
@@ -10,13 +11,13 @@ import (
 )
 
 type Handler struct {
-	Service     *Service
+	service     *Service
 	userService *user.Service
 }
 
 func NewHandler(service *Service, userService *user.Service) *Handler {
 	return &Handler{
-		Service:     service,
+		service:     service,
 		userService: userService,
 	}
 }
@@ -37,17 +38,15 @@ func (h *Handler) Register(ctx *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		switch err.Error() {
-		case "Email already in use", "Username already in use":
+		if errors.Is(err, user.ErrEmailInUse) || errors.Is(err, user.ErrUsernameInUse) {
 			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
-		default:
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
 		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{"user": createdUser})
+	ctx.JSON(http.StatusCreated, gin.H{"user": user.ToUserResponse(createdUser)})
 }
 
 func (h *Handler) Login(ctx *gin.Context) {
@@ -60,44 +59,31 @@ func (h *Handler) Login(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, err := h.Service.Login(req)
+	accessToken, err := h.service.Login(req)
 	if err != nil {
-		switch err.Error() {
-		case "User not found":
+		if errors.Is(err, ErrUserNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
-		case "Unauthorized":
+		}
+		if errors.Is(err, ErrUnauthorized) {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
-		default:
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
 		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
-	ctx.JSON(http.StatusAccepted, gin.H{"access_token": accessToken})
+	ctx.JSON(http.StatusOK, gin.H{"access_token": accessToken})
 }
 
 func (h *Handler) Logout(ctx *gin.Context) {
-	claimsAny, ok := ctx.Get("claims")
+	tokenID, ok := tokenIDFromClaims(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	claims, ok := claimsAny.(jwt.MapClaims)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	tokenID, ok := claims["id"].(string)
-	if !ok || tokenID == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	if err := h.Service.Logout(tokenID); err != nil {
+	if err := h.service.Logout(tokenID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -106,22 +92,44 @@ func (h *Handler) Logout(ctx *gin.Context) {
 }
 
 func (h *Handler) Me(ctx *gin.Context) {
-	claimsAny, ok := ctx.Get("claims")
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	claims, ok := claimsAny.(jwt.MapClaims)
+	claims, ok := claimsFromContext(ctx)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"id":       claims["id"],
+		"id":       claims["user_id"],
 		"username": claims["username"],
 		"email":    claims["email"],
 		"exp":      claims["exp"],
 	})
+}
+
+func claimsFromContext(ctx *gin.Context) (jwt.MapClaims, bool) {
+	claimsAny, ok := ctx.Get("claims")
+	if !ok {
+		return nil, false
+	}
+
+	claims, ok := claimsAny.(jwt.MapClaims)
+	if !ok {
+		return nil, false
+	}
+
+	return claims, true
+}
+
+func tokenIDFromClaims(ctx *gin.Context) (string, bool) {
+	claims, ok := claimsFromContext(ctx)
+	if !ok {
+		return "", false
+	}
+
+	tokenID, ok := claims["token_id"].(string)
+	if !ok || tokenID == "" {
+		return "", false
+	}
+
+	return tokenID, true
 }

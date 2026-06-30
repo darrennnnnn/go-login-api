@@ -7,6 +7,6 @@ type LoginRequest struct {
 
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required,max=16"`
-	Email    string `json:"email" binding:"required,min=8,email"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,password"`
 }

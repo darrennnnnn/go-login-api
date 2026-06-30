@@ -20,20 +20,17 @@ func NewService(repo *Repository) *Service {
 }
 
 func (s *Service) CreateUser(requestBody CreateUserRequest) (*User, error) {
-	// normalize input
 	email := strings.ToLower(strings.TrimSpace(requestBody.Email))
 	username := strings.TrimSpace(requestBody.Username)
 
-	// check for existing email
 	if existing, err := s.repo.GetUserByEmail(email); err == nil && existing != nil {
-		return nil, errors.New("Email already in use")
+		return nil, ErrEmailInUse
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
-	// check for existing username
 	if existing, err := s.repo.GetUserByUsername(username); err == nil && existing != nil {
-		return nil, errors.New("Username already in use")
+		return nil, ErrUsernameInUse
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
@@ -44,7 +41,7 @@ func (s *Service) CreateUser(requestBody CreateUserRequest) (*User, error) {
 	}
 
 	user := User{
-		Id:       uuid.NewString(),
+		ID:       uuid.NewString(),
 		Username: username,
 		Email:    email,
 		Password: string(hashedPassword),
@@ -66,27 +63,21 @@ func (s *Service) DeleteUser(id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("User not found")
+		return ErrUserNotFound
 	}
 
-	return err
+	return nil
 }
 
 func (s *Service) GetUsers() ([]User, error) {
-	users, err := s.repo.GetUsers()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return users, nil
+	return s.repo.GetUsers()
 }
 
 func (s *Service) GetUserByID(id string) (*User, error) {
 	user, err := s.repo.GetUserByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("User not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}

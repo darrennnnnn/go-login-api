@@ -8,19 +8,17 @@ import (
 	"gorm.io/gorm"
 )
 
-func Connect() *gorm.DB {
-	cfg := config.Load()
+func Connect(cfg *config.Config) *gorm.DB {
 	dsn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
-		cfg.DB.DBUser, 
-		cfg.DB.DBPassword, 
-		cfg.DB.DBHost, 
-		cfg.DB.DBPort, 
+		cfg.DB.DBUser,
+		cfg.DB.DBPassword,
+		cfg.DB.DBHost,
+		cfg.DB.DBPort,
 		cfg.DB.DBName,
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-
 	if err != nil {
 		panic(err)
 	}

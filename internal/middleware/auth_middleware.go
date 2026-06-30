@@ -1,4 +1,4 @@
-package middlewares
+package middleware
 
 import (
 	"fmt"
@@ -10,20 +10,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthMiddleware(jwtSecret []byte, tokenService *auth.Service) gin.HandlerFunc {
+func AuthMiddleware(jwtSecret []byte, tokenService auth.TokenValidator) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		auth := ctx.GetHeader("Authorization")
-		if auth == "" {
+		authHeader := ctx.GetHeader("Authorization")
+		if authHeader == "" {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "No token"})
 			return
 		}
 
-		if !strings.HasPrefix(auth, "Bearer ") {
+		if !strings.HasPrefix(authHeader, "Bearer ") {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			return
 		}
 
-		tokenString := strings.TrimPrefix(auth, "Bearer ")
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		tokenString = strings.TrimSpace(tokenString)
 		if tokenString == "" {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "No token"})
@@ -49,8 +49,8 @@ func AuthMiddleware(jwtSecret []byte, tokenService *auth.Service) gin.HandlerFun
 			return
 		}
 
-		tokenID, ok := claims["id"].(string)
-		if !ok {
+		tokenID, ok := claims["token_id"].(string)
+		if !ok || tokenID == "" {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token ID"})
 			return
 		}

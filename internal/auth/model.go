@@ -12,5 +12,5 @@ type AccessToken struct {
 	Revoked   bool      `gorm:"not null;default:false"`
 	ExpiresAt time.Time `gorm:"type:timestamptz;not null"`
 
-	User user.User `gorm:"foreignKey:UserID;references:Id"`
+	User user.User `gorm:"foreignKey:UserID;references:ID"`
 }

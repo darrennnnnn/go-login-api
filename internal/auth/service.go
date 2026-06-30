@@ -33,17 +33,17 @@ func (s *Service) Login(requestBody LoginRequest) (string, error) {
 	userRecord, err := s.userRepo.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", errors.New("User not found")
+			return "", ErrUserNotFound
 		}
 		return "", err
 	}
 
 	if userRecord == nil {
-		return "", errors.New("User not found")
+		return "", ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(userRecord.Password), []byte(requestBody.Password)); err != nil {
-		return "", errors.New("Unauthorized")
+		return "", ErrUnauthorized
 	}
 
 	expirationDate := time.Now().Add(30 * time.Minute)
@@ -51,7 +51,7 @@ func (s *Service) Login(requestBody LoginRequest) (string, error) {
 
 	accessTokenRecord := &AccessToken{
 		ID:        accessTokenID,
-		UserID:    userRecord.Id,
+		UserID:    userRecord.ID,
 		Revoked:   false,
 		ExpiresAt: expirationDate,
 	}
@@ -61,7 +61,8 @@ func (s *Service) Login(requestBody LoginRequest) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":       accessTokenID,
+		"token_id": accessTokenID,
+		"user_id":  userRecord.ID,
 		"username": userRecord.Username,
 		"email":    userRecord.Email,
 		"exp":      expirationDate.Unix(),
@@ -79,17 +80,17 @@ func (s *Service) ValidateAccessToken(tokenID string) error {
 	accessToken, err := s.repo.GetAccessTokenByID(tokenID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("Token not found, please try to login again")
+			return ErrTokenNotFound
 		}
 		return err
 	}
 
 	if accessToken.Revoked {
-		return errors.New("Token is revoked")
+		return ErrTokenRevoked
 	}
 
 	if accessToken.ExpiresAt.Before(time.Now()) {
-		return errors.New("Token is expired")
+		return ErrTokenExpired
 	}
 
 	return nil

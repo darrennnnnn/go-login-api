@@ -1,50 +1,21 @@
 package user
 
 import (
+	"errors"
 	"net/http"
 
-	"github.com/darrennnnnn/go-login-api/internal/validation"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type Handler struct {
-	Service *Service
+	service *Service
 }
 
 func NewHandler(service *Service) *Handler {
 	return &Handler{
-		Service: service,
+		service: service,
 	}
-}
-
-func (h *Handler) CreateUser(ctx *gin.Context) {
-	var req CreateUserRequest
-
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"status": "error",
-			"errors": validation.FormatValidationErrors(err),
-		})
-		return
-	}
-
-	user, err := h.Service.CreateUser(req)
-
-	if err != nil {
-		switch err.Error() {
-		case "Email already in use", "Username already in use":
-			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-			return
-		default:
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	}
-
-	ctx.JSON(http.StatusCreated, gin.H{
-		"user": user,
-	})
 }
 
 func (h *Handler) DeleteUser(ctx *gin.Context) {
@@ -59,8 +30,8 @@ func (h *Handler) DeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.Service.DeleteUser(id); err != nil {
-		if err.Error() == "User not found" {
+	if err := h.service.DeleteUser(id); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
@@ -74,8 +45,7 @@ func (h *Handler) DeleteUser(ctx *gin.Context) {
 }
 
 func (h *Handler) GetUsers(ctx *gin.Context) {
-	users, err := h.Service.GetUsers()
-
+	users, err := h.service.GetUsers()
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -84,7 +54,7 @@ func (h *Handler) GetUsers(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"data": users,
+		"data": ToUserResponses(users),
 	})
 }
 
@@ -95,10 +65,9 @@ func (h *Handler) GetUserByID(ctx *gin.Context) {
 		return
 	}
 
-	user, err := h.Service.GetUserByID(id)
-
+	user, err := h.service.GetUserByID(id)
 	if err != nil {
-		if err.Error() == "User not found" {
+		if errors.Is(err, ErrUserNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
@@ -108,6 +77,6 @@ func (h *Handler) GetUserByID(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"data": user,
+		"data": ToUserResponse(user),
 	})
 }

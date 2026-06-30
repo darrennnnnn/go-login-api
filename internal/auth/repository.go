@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -25,7 +26,7 @@ func (r *Repository) CreateAccessToken(accessToken *AccessToken) error {
 	}
 
 	if err := r.cacheSetAccessToken(accessToken); err != nil {
-		return nil
+		log.Printf("auth: cache access token %s: %v", accessToken.ID, err)
 	}
 
 	return nil
@@ -43,7 +44,7 @@ func (r *Repository) GetAccessTokenByID(tokenID string) (*AccessToken, error) {
 	}
 
 	if err := r.cacheSetAccessToken(accessToken); err != nil {
-		return accessToken, nil
+		log.Printf("auth: cache access token %s: %v", accessToken.ID, err)
 	}
 
 	return accessToken, nil
@@ -54,7 +55,9 @@ func (r *Repository) RevokeAccessToken(tokenID string) error {
 		return err
 	}
 
-	_ = r.cache.Del(context.Background(), accessTokenCacheKey(tokenID)).Err()
+	if err := r.cache.Del(context.Background(), accessTokenCacheKey(tokenID)).Err(); err != nil {
+		log.Printf("auth: delete cached access token %s: %v", tokenID, err)
+	}
 
 	return nil
 }

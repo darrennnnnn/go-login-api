@@ -1,7 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/darrennnnnn/go-login-api/config"
 	"github.com/darrennnnnn/go-login-api/internal/auth"
@@ -17,7 +24,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	db := database.Connect()
+	db := database.Connect(cfg)
 	db.AutoMigrate(&user.User{}, &auth.AccessToken{})
 
 	redisClient := redisclient.Connect(cfg)
@@ -37,8 +44,31 @@ func main() {
 
 	router := gin.Default()
 
-	routes.Register(router, userHandler, authHandler, healthHandler, cfg.JWT.Secret)
+	routes.Register(router, userHandler, authHandler, authService, healthHandler, cfg.JWT.Secret)
 
 	addr := fmt.Sprintf(":%s", cfg.Server.ServerPort)
-	router.Run(addr)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router,
+	}
+
+	go func() {
+		log.Printf("server listening on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("server shutting down")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("server shutdown: %v", err)
+	}
 }
