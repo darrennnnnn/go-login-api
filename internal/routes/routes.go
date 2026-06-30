@@ -8,26 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Register(
-	r *gin.Engine,
-	userHandler *user.Handler,
-	authHandler *auth.Handler,
-	tokenValidator auth.TokenValidator,
-	healthHandler *health.Handler,
-	jwtSecret []byte,
-) {
-	r.GET("/health", healthHandler.Check)
+type Deps struct {
+	User           *user.Handler
+	Auth           *auth.Handler
+	Health         *health.Handler
+	TokenValidator auth.TokenValidator
+	JWTSecret      []byte
+}
 
-	r.POST("/api/auth/login", authHandler.Login)
-	r.POST("/api/auth/register", authHandler.Register)
+func Register(r *gin.Engine, deps Deps) {
+	r.GET("/health", deps.Health.Check)
+
+	auth.RegisterPublicRoutes(r, deps.Auth)
 
 	protected := r.Group("/api")
-	protected.Use(middleware.AuthMiddleware(jwtSecret, tokenValidator))
-	{
-		protected.GET("/auth/me", authHandler.Me)
-		protected.POST("/auth/logout", authHandler.Logout)
-		protected.GET("/user", userHandler.GetUsers)
-		protected.GET("/user/:id", userHandler.GetUserByID)
-		protected.DELETE("/user/:id", userHandler.DeleteUser)
-	}
+	protected.Use(middleware.AuthMiddleware(deps.JWTSecret, deps.TokenValidator))
+	auth.RegisterProtectedRoutes(protected, deps.Auth)
+	user.RegisterRoutes(protected, deps.User)
 }

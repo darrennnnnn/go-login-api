@@ -22,36 +22,53 @@ import (
 )
 
 func main() {
+	// environment variables
 	cfg := config.Load()
 
+	// database connection
 	db := database.Connect(cfg)
 	db.AutoMigrate(&user.User{}, &auth.AccessToken{})
 
+	// redis connection
 	redisClient := redisclient.Connect(cfg)
 	defer redisClient.Close()
 
+	// validation initialization
 	validation.Init()
 
+	// user repository
 	userRepo := user.NewRepository(db)
 	userService := user.NewService(userRepo)
 	userHandler := user.NewHandler(userService)
 
+	// auth repository
 	authRepo := auth.NewRepository(db, redisClient)
 	authService := auth.NewService(authRepo, userRepo, cfg)
 	authHandler := auth.NewHandler(authService, userService)
 
+	// health handler
 	healthHandler := health.NewHandler(db, redisClient)
 
+	// router initialization
 	router := gin.Default()
 
-	routes.Register(router, userHandler, authHandler, authService, healthHandler, cfg.JWT.Secret)
+	// routes registration
+	routes.Register(router, routes.Deps{
+		User:           userHandler,
+		Auth:           authHandler,
+		Health:         healthHandler,
+		TokenValidator: authService,
+		JWTSecret:      cfg.JWT.Secret,
+	})
 
+	// server address
 	addr := fmt.Sprintf(":%s", cfg.Server.ServerPort)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: router,
 	}
 
+	// server start
 	go func() {
 		log.Printf("server listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -59,6 +76,7 @@ func main() {
 		}
 	}()
 
+	// server shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
